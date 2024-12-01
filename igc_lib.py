@@ -405,12 +405,14 @@ class Thermal:
         enter_fix: a GNSSFix, entry point of the thermal
         exit_fix: a GNSSFix, exit point of the thermal
         fixes: all GNSSFixes between enter_fix and exit_fix
+        direction: Circling direction: L, R or LR
     """
     def __init__(self, enter_fix, exit_fix, fixes):
         self.enter_fix = enter_fix
         self.exit_fix = exit_fix
         self.fixes = fixes
         self.flight = None
+        self.direction = None
 
     def time_change(self):
         """Returns the time spent in the thermal, seconds."""
@@ -430,14 +432,35 @@ class Thermal:
         """Sets parent Flight object."""
         self.flight = flight
 
+    def _compute_circling_direction(self):
+        """For each thermal, add property direction
+
+        Circling direction is either 
+            'R', i.e. clock-wise or
+            'L', i.e. counter-clock-wise  
+            'LR', for mixed thermals
+        """
+        x = np.array([fix.bearing_change_rate for fix in self.fixes])
+        # positive bearing change rate is clock-wise rotation, 
+        # i.e. circling to the right
+        if np.sum(x > 0) / np.size(x) > self.flight._config.circling_direction_threshold:
+            self.direction = "R"
+        elif np.sum(x < 0) / np.size(x) > self.flight._config.circling_direction_threshold:
+            self.direction = "L"
+        else:
+            self.direction = "LR"
+
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
         idx_self = self.flight.thermals.index(self)
-        hms = _rawtime_float_to_hms(self.time_change())
-        return ("Thermal%i(vertical_velocity=%.2f m/s, duration=%dm %ds)" %
-                (idx_self,self.vertical_velocity(), hms.minutes, hms.seconds))
+        return ("T%03i(dur %4d s, gain %4i m, avg %.2f m/s, dir %-2s)" %
+                (idx_self,
+                 self.time_change(),
+                 self.alt_change(),
+                 self.vertical_velocity(), 
+                 self.direction))
 
 class Glide:
     """Represents a single glide detected in a flight.
@@ -487,12 +510,13 @@ class Glide:
 
     def __str__(self):
         idx_self = self.flight.glides.index(self)
-        hms = _rawtime_float_to_hms(self.time_change())
         return (
-            ("Glide%i(dist=%.2f km, avg_speed=%.2f kph, "
-             "avg L/D=%.2f duration=%dm %ds)") % (
-                idx_self,self.track_length, self.speed(), self.glide_ratio(),
-                hms.minutes, hms.seconds))
+            ("G%03i(dur %4d s, dist %4.1f km, avg %.2f km/h, GR %4.1f )") 
+            % ( idx_self,
+                self.time_change(),
+                self.track_length, 
+                self.speed(), 
+                self.glide_ratio()))
 
 
 class FlightParsingConfig(object):
@@ -577,6 +601,12 @@ class FlightParsingConfig(object):
 
     # Minimum time to consider circling a thermal, seconds.
     min_time_for_thermal = 60.0
+
+    # Threshold for cirlcing left/right detection
+    # If a significant part of the thermal is spent circling in one
+    # direction, it is labeled either L or R. If not, i.e. mixed
+    # circling directions, it is labeled LR.
+    circling_direction_threshold = 0.75
 
 
 class Flight:
@@ -720,9 +750,11 @@ class Flight:
 
         for thermal in self.thermals:
             thermal.set_flight(self)
+            thermal._compute_circling_direction()
 
         for glide in self.glides:
             glide.set_flight(self)
+        
 
     def _parse_a_records(self, a_records):
         """Parses the IGC A record.
