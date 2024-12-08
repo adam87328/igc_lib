@@ -625,6 +625,9 @@ class FlightParsingConfig(object):
     # Minimum time to consider circling a thermal, seconds.
     min_time_for_thermal = 60.0
 
+    # Minimum mean vertical velocity consider circling a thermal. m/s
+    min_vertical_velocity_for_thermal = 0.5
+
     # Threshold for cirlcing left/right detection
     # If a significant part of the thermal is spent circling in one
     # direction, it is labeled either L or R. If not, i.e. mixed
@@ -1239,8 +1242,9 @@ class Flight:
                 # Just ended circling
                 circling_now = False
                 thermal = Thermal(first_fix, fix, flight_fixes[first_fix.index:fix.index])
-                if (thermal.time_change() >
-                        self._config.min_time_for_thermal - 1e-5):
+                if (thermal.time_change() >= self._config.min_time_for_thermal) and \
+                    (thermal.vertical_velocity() >= self._config.min_vertical_velocity_for_thermal):
+                    
                     self.thermals.append(thermal)
                     # glide ends at start of thermal
                     glide = Glide(first_glide_fix, first_fix, 
