@@ -25,13 +25,13 @@ was considered broken.
 from __future__ import print_function
 
 import collections
+from collections import defaultdict
 import datetime
 import math
 import re
 import xml.dom.minidom
 from pathlib2 import Path
-
-from collections import defaultdict
+import json
 
 import lib.viterbi as viterbi
 import lib.geo as geo
@@ -672,6 +672,15 @@ class Flight:
         gnss_alt_valid: a bool, whether the GNSS altitude sensor is OK
     """
 
+    # ensure properties exist, even if no match in igc record
+    glider_type = ''
+    fr_recorder_type = ''
+    fr_gps_receiver = ''
+    fr_firmware_version = ''
+    fr_hardware_version = ''
+    fr_pressure_sensor = ''
+    competition_class = ''
+
     @staticmethod
     def create_from_file(filename, config_class=FlightParsingConfig):
         """Creates an instance of Flight from a given file.
@@ -816,13 +825,18 @@ class Flight:
                 r"(?:HFDTE|HFDTEDATE:[ ]*)(\d\d)(\d\d)(\d\d)",
                 record, flags=re.IGNORECASE)
             if match:
+                # https://xp-soaring.github.io/igc_file_format/igc_format_2008.html#link_3.3
+                # HFDTEDDMMYY UTC date this file was recorded
+                # If file contains midnight, not clear which day is recorded here.
                 dd, mm, yy = [_strip_non_printable_chars(group) for group in match.groups()]
                 year = int(2000 + int(yy))
                 month = int(mm)
                 day = int(dd)
                 if 1 <= month <= 12 and 1 <= day <= 31:
-                    epoch = datetime.datetime(year=1970, month=1, day=1)
                     date = datetime.datetime(year=year, month=month, day=day)
+                    self.date_utc = date
+                    # conversion to UNIX time
+                    epoch = datetime.datetime(year=1970, month=1, day=1)
                     self.date_timestamp = (date - epoch).total_seconds()
         elif record[0:5] == 'HFGTY':
             match = re.match(
@@ -1268,3 +1282,99 @@ class Flight:
                           flight_fixes[first_glide_fix.index:last_glide_fix.index],
                           distance)
             self.glides.append(glide)
+
+    def flight_summary(self):
+        """Print flight summary
+        
+        As JSON
+        """
+        
+        # times
+        t0 = self.date_utc + datetime.timedelta(seconds=self.takeoff_fix.rawtime)
+        t1 = self.date_utc + datetime.timedelta(seconds=self.landing_fix.rawtime)
+        T = t1 - t0
+
+        # fraction of airtime spent thermalling
+        if self.thermals:
+            thermal_time = sum([th.time_change() for th in self.thermals]) 
+            thermal_frac = thermal_time / T.total_seconds()
+            # best average climb speed and best alt gain
+            thermal_max_climb = max([th.vertical_velocity() for th in self.thermals])
+            thermal_max_gain = max([th.alt_change() for th in self.thermals])
+            # circling direction, sum of time spent
+            t_sum_L  = sum([th.time_change() for th in self.thermals if th.direction == "L"])
+            t_sum_R  = sum([th.time_change() for th in self.thermals if th.direction == "R"])
+            t_sum_LR = sum([th.time_change() for th in self.thermals if th.direction == "LR"])
+            # Time per circle weighted average
+            # Does not make sense to compute for mixed-direction thermals
+            tc_L = sum([th.time_change()*th.time_per_circle 
+                        for th in self.thermals 
+                        if th.direction == "L"]) / t_sum_L
+            tc_R = sum([th.time_change()*th.time_per_circle 
+                        for th in self.thermals 
+                        if th.direction == "R"]) / t_sum_R
+        else:
+            thermal_time = 0
+            thermal_frac = 0
+            thermal_max_climb = 0
+            thermal_max_gain = 0
+            t_sum_L = 0
+            t_sum_R = 0
+            t_sum_LR = 0
+            tc_L = 0
+            tc_R = 0
+
+        if self.glides:
+            glide_time = sum([gl.time_change() for gl in self.glides])
+            glide_frac = glide_time / T.total_seconds()
+            # glide speed, weighted avg
+            glide_avg_speed = sum([gl.time_change()*gl.speed() for gl in self.glides])/glide_time
+        else:
+            glide_time = 0
+            glide_frac = 0
+            glide_avg_speed = 0
+
+        info = {
+            "flight": {
+                "date"         : str(self.date_utc.date()),
+                "airtime_str"  : str(T),
+                "airtime"      : {"value": T.total_seconds(), "unit": "s"},
+                "glider_type"  : self.glider_type,
+            },
+            "takeoff": {   
+                "time"     : {"value": t0.__str__(), "unit": "UTC"},
+                "lat"      : {"value": self.takeoff_fix.lat,"unit": "deg"},
+                "lon"      : {"value": self.takeoff_fix.lon,"unit": "deg"},
+                "alt_gnss" : {"value": self.takeoff_fix.gnss_alt, "unit": "m"}
+            },
+            "landing": {
+                "datetime" :  {"value": str(t1), "unit": "UTC"},
+                "lat"      :  {"value": self.landing_fix.lat, "unit": "deg"},
+                "lon"      :  {"value": self.landing_fix.lon, "unit": "deg"},
+                "alt_gnss" :  {"value": self.landing_fix.gnss_alt, "unit": "m"}
+            },
+            "thermals": {
+                "time_total"    : {"value": thermal_frac, "unit": "%"},
+                "max_avg_climb" : {"value": thermal_max_climb, "unit": "m/s"},
+                "max_gain"      : {"value": thermal_max_gain, "unit": "m"},
+                "circ_dir_L"    : {"value": t_sum_L/thermal_time if thermal_time != 0 else 0, "unit": "%"},
+                "circ_dir_R"    : {"value": t_sum_R/thermal_time if thermal_time != 0 else 0, "unit": "%"},
+                "circ_dir_LR"   : {"value": t_sum_LR/thermal_time if thermal_time != 0 else 0, "unit": "%"},
+                "circ_time_L"   : {"value": tc_L, "unit": "s"},
+                "circ_time_R"   : {"value": tc_R, "unit": "s"},
+            },
+            "glides": {
+                "time_total"    : {"value": glide_frac, "unit": "%"},
+                "avg_speed"     : {"value": glide_avg_speed , "unit": "km/h"}
+            },
+            "recorder": {
+                "type": self.fr_recorder_type,
+                "code": self.fr_manuf_code,
+                "gnss" : self.fr_gps_receiver,
+                "press": self.fr_pressure_sensor,
+                "firmware_v" : self.fr_firmware_version,
+                "hardware_v": self.fr_hardware_version
+            }
+        }
+        
+        return json.dumps(info, indent=2)
