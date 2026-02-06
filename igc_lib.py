@@ -1425,15 +1425,52 @@ class Flight:
         return json.dumps(info)
     
     def timeseries(self):
-        """time / lat / lon / alt"""
-        # return only subset valid & flying
-        fixes = [fix for fix in self.fixes if fix.validity and fix.flying]
+        """Enhanced timeseries format with track points from thermals and glides.
+        
+        Returns a dictionary with track_points array containing chronologically
+        ordered GPS fixes from all thermals and glides, with segment information.
+        """
+        track_points = []
+        
+        # Process thermals
+        for segment_id, thermal in enumerate(self.thermals):
+            for fix in thermal.fixes:
+                if fix.validity:
+                    track_points.append({
+                        "rawtime": fix.rawtime,  # Keep for sorting
+                        "lat": fix.lat,
+                        "lon": fix.lon,
+                        "gps_alt": int(fix.gnss_alt),
+                        "pressure_alt": int(fix.press_alt),
+                        "segment_type": "thermal",
+                        "segment_id": segment_id
+                    })
+        
+        # Process glides
+        for segment_id, glide in enumerate(self.glides):
+            for fix in glide.fixes:
+                if fix.validity:
+                    track_points.append({
+                        "rawtime": fix.rawtime,  # Keep for sorting
+                        "lat": fix.lat,
+                        "lon": fix.lon,
+                        "gps_alt": int(fix.gnss_alt),
+                        "pressure_alt": int(fix.press_alt),
+                        "segment_type": "glide",
+                        "segment_id": segment_id
+                    })
+        
+        # Sort chronologically by rawtime (numeric, more efficient)
+        track_points.sort(key=lambda x: x["rawtime"])
+        
+        # Convert timestamps to ISO 8601 format after sorting
+        for tp in track_points:
+            dt = self.date_utc + datetime.timedelta(seconds=tp["rawtime"])
+            tp["timestamp"] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            # del tp["rawtime"]  # Remove the temporary sorting key
+        
         return {
-            'time': [int(fix.rawtime) for fix in fixes],
-            'lat': [fix.lat for fix in fixes],
-            'lon':  [fix.lon for fix in fixes],
-            'alt_gnss': [int(fix.gnss_alt) for fix in fixes],
-            'alt_pres': [int(fix.press_alt) for fix in fixes]
+            "track_points": track_points
         }
 
     def thermals_to_gdf(self):
