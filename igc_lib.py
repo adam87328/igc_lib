@@ -31,9 +31,6 @@ import math
 import re
 import xml.dom.minidom
 from pathlib2 import Path
-import geopandas as gpd
-import numpy as np
-from shapely.geometry import Point, LineString
 import json
 
 import lib.viterbi as viterbi
@@ -445,12 +442,16 @@ class Thermal:
             'L', i.e. counter-clock-wise  
             'LR', for mixed thermals
         """
-        x = np.array([fix.bearing_change_rate for fix in self.fixes])
+        bearing_change_rates = [fix.bearing_change_rate for fix in self.fixes]
         # positive bearing change rate is clock-wise rotation, 
         # i.e. circling to the right
-        if np.sum(x > 0) / np.size(x) > self.flight._config.circling_direction_threshold:
+        total = len(bearing_change_rates)
+        positive_count = sum(1 for x in bearing_change_rates if x > 0)
+        negative_count = sum(1 for x in bearing_change_rates if x < 0)
+        
+        if positive_count / total > self.flight._config.circling_direction_threshold:
             self.direction = "R"
-        elif np.sum(x < 0) / np.size(x) > self.flight._config.circling_direction_threshold:
+        elif negative_count / total > self.flight._config.circling_direction_threshold:
             self.direction = "L"
         else:
             self.direction = "LR"
@@ -469,10 +470,20 @@ class Thermal:
             return
         
         # compute based on accumulated bearing change
-        bearing_uw = np.unwrap(
-            np.array([fix.bearing for fix in self.fixes]),
-            period=360)
-        abs_rotation = np.abs(bearing_uw[-1] - bearing_uw[1])
+        bearings = [fix.bearing for fix in self.fixes]
+        
+        # Implement unwrap manually (similar to numpy's unwrap with period=360)
+        bearing_uw = [bearings[0]]
+        for i in range(1, len(bearings)):
+            diff = bearings[i] - bearings[i-1]
+            # Adjust for crossing the 360/0 boundary
+            if diff > 180:
+                diff -= 360
+            elif diff < -180:
+                diff += 360
+            bearing_uw.append(bearing_uw[-1] + diff)
+        
+        abs_rotation = abs(bearing_uw[-1] - bearing_uw[1])
         self.time_per_circle = self.time_change() / (abs_rotation / 360)
 
     def __repr__(self):
@@ -1431,40 +1442,66 @@ class Flight:
         }
 
     def thermals_to_gdf(self):
-        """Thermals to geopandas geodataframe"""
+        """Thermals to GeoJSON"""
         
-        # Convert the array of coordinates to a LineString
-        line = []
-        for thermal in self.thermals:
-            line.append( LineString(np.array([[fix.lon, fix.lat] for fix in thermal.fixes])) )
-
-        # Create a GeoDataFrame with the LineString geometry
-        gdf = gpd.GeoDataFrame({
-            'geometry': line, 
-            'duration': [thermal.time_change() for thermal in self.thermals],
-            'alt_change': [thermal.alt_change() for thermal in self.thermals],
-            'vertical_velocity': [thermal.vertical_velocity() for thermal in self.thermals],
-            'direction': [thermal.direction for thermal in self.thermals],
-            })
-        gdf.set_crs(epsg=4326, inplace=True)
-
-        return gdf
+        if not self.thermals:
+            return json.dumps({"type": "FeatureCollection", "features": []})
+        
+        # Build GeoJSON FeatureCollection
+        features = []
+        for i, thermal in enumerate(self.thermals):
+            # Convert fixes to LineString coordinates
+            coordinates = [[fix.lon, fix.lat] for fix in thermal.fixes]
+            
+            feature = {
+                "id": str(i),
+                "type": "Feature",
+                "properties": {
+                    "duration": thermal.time_change(),
+                    "alt_change": thermal.alt_change(),
+                    "vertical_velocity": thermal.vertical_velocity(),
+                    "direction": thermal.direction
+                },
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": coordinates
+                }
+            }
+            features.append(feature)
+        
+        return json.dumps({
+            "type": "FeatureCollection",
+            "features": features
+        })
 
     def glides_to_gdf(self):
-        """Glides to geopandas geodataframe"""
+        """Glides to GeoJSON"""
 
-        # Convert the array of coordinates to a LineString
-        line = []
-        for glide in self.glides:
-            line.append( LineString(np.array([[fix.lon, fix.lat] for fix in glide.fixes])) )
-
-        # Create a GeoDataFrame with the LineString geometry
-        gdf = gpd.GeoDataFrame({
-            'geometry': line, 
-            'duration': [glide.time_change() for glide in self.glides],
-            'alt_change': [glide.alt_change() for glide in self.glides],
-            'glide_ratio': [glide.glide_ratio() for glide in self.glides],
-            })
-        gdf.set_crs(epsg=4326, inplace=True)
-
-        return gdf
+        if not self.glides:
+            return json.dumps({"type": "FeatureCollection", "features": []})
+        
+        # Build GeoJSON FeatureCollection
+        features = []
+        for i, glide in enumerate(self.glides):
+            # Convert fixes to LineString coordinates
+            coordinates = [[fix.lon, fix.lat] for fix in glide.fixes]
+            
+            feature = {
+                "id": str(i),
+                "type": "Feature",
+                "properties": {
+                    "duration": glide.time_change(),
+                    "alt_change": glide.alt_change(),
+                    "glide_ratio": glide.glide_ratio()
+                },
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": coordinates
+                }
+            }
+            features.append(feature)
+        
+        return json.dumps({
+            "type": "FeatureCollection",
+            "features": features
+        })
