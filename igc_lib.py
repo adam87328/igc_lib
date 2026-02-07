@@ -1319,14 +1319,6 @@ class Flight:
             t_sum_L  = sum([th.time_change() for th in self.thermals if th.direction == "L"])
             t_sum_R  = sum([th.time_change() for th in self.thermals if th.direction == "R"])
             t_sum_LR = sum([th.time_change() for th in self.thermals if th.direction == "LR"])
-            # Time per circle weighted average
-            # Does not make sense to compute for mixed-direction thermals
-            tc_L = sum([th.time_change()*th.time_per_circle 
-                        for th in self.thermals 
-                        if th.direction == "L"]) / t_sum_L
-            tc_R = sum([th.time_change()*th.time_per_circle 
-                        for th in self.thermals 
-                        if th.direction == "R"]) / t_sum_R
         else:
             thermal_time = 0
             thermal_frac = 0
@@ -1337,6 +1329,20 @@ class Flight:
             t_sum_LR = 0
             tc_L = 0
             tc_R = 0
+            
+        # Time per circle weighted average
+        # Does not make sense to compute for mixed-direction thermals
+        tc_L = 0
+        if t_sum_L > 0:
+            tc_L = sum([th.time_change()*th.time_per_circle 
+                        for th in self.thermals 
+                        if th.direction == "L"]) / t_sum_L
+
+        tc_R = 0
+        if t_sum_R > 0:
+            tc_R = sum([th.time_change()*th.time_per_circle 
+                        for th in self.thermals 
+                        if th.direction == "R"]) / t_sum_R
 
         if self.glides:
             glide_time = sum([gl.time_change() for gl in self.glides])

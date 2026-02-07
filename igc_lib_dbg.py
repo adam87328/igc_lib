@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
 import igc_lib
+import json
 
 def main():
     if len(sys.argv) < 2:
@@ -18,8 +19,7 @@ def main():
         print(flight.notes)
         sys.exit(1)
 
-    json = flight.flight_summary()
-    print(json)
+    print(json.dumps(json.loads(flight.flight_summary()), indent=2) )
         
 if __name__ == "__main__":
     main()
