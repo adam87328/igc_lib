@@ -1362,7 +1362,7 @@ class Flight:
                 "glider_type"  : self.glider_type,
             },
             "takeoff": {   
-                "time"     : {"value": t0.__str__(), "unit": "UTC"},
+                "datetime" : {"value": t0.__str__(), "unit": "UTC"},
                 "lat"      : {"value": self.takeoff_fix.lat,"unit": "deg"},
                 "lon"      : {"value": self.takeoff_fix.lon,"unit": "deg"},
                 "alt_gnss" : {"value": self.takeoff_fix.gnss_alt, "unit": "m"}
