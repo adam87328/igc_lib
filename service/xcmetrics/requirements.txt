@@ -1,0 +1,4 @@
+# Include igc_lib requirements
+-r igc_lib/requirements.txt
+
+# Add additional service-specific requirements here
