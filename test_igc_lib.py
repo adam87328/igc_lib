@@ -128,11 +128,11 @@ class TestNapretFlightParsing(unittest.TestCase):
         self.assertEqual(self.flight.glider_type, 'test_glider')
         self.assertEqual(self.flight.competition_class,
                          'test_competition_class')
-        self.assertFalse(hasattr(self.flight, 'fr_firmware_version'))
-        self.assertFalse(hasattr(self.flight, 'fr_hardware_version'))
-        self.assertFalse(hasattr(self.flight, 'fr_recorder_type'))
-        self.assertFalse(hasattr(self.flight, 'fr_gps_receiver'))
-        self.assertFalse(hasattr(self.flight, 'fr_pressure_sensor'))
+        self.assertTrue(hasattr(self.flight, 'fr_firmware_version'))
+        self.assertTrue(hasattr(self.flight, 'fr_hardware_version'))
+        self.assertTrue(hasattr(self.flight, 'fr_recorder_type'))
+        self.assertTrue(hasattr(self.flight, 'fr_gps_receiver'))
+        self.assertTrue(hasattr(self.flight, 'fr_pressure_sensor'))
 
     def testBRecordsParsing(self):
         self.assertEqual(len(self.flight.fixes), 5380)

@@ -32,6 +32,7 @@ import re
 import xml.dom.minidom
 from pathlib2 import Path
 import geopandas as gpd
+import numpy as np
 from shapely.geometry import Point, LineString
 import json
 
