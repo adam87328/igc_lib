@@ -1269,14 +1269,14 @@ class Flight:
             elif circling_now and not fix.circling:
                 # Just ended circling
                 circling_now = False
-                thermal = Thermal(first_fix, fix, flight_fixes[first_fix.index:fix.index])
+                thermal = Thermal(first_fix, fix, self.fixes[first_fix.index:fix.index])
                 if (thermal.time_change() >= self._config.min_time_for_thermal) and \
                     (thermal.vertical_velocity() >= self._config.min_vertical_velocity_for_thermal):
                     
                     self.thermals.append(thermal)
                     # glide ends at start of thermal
                     glide = Glide(first_glide_fix, first_fix, 
-                                  flight_fixes[first_glide_fix.index:first_fix.index],
+                                  self.fixes[first_glide_fix.index:first_fix.index+1],
                                   distance_start_circling)
                     self.glides.append(glide)
                     gliding_now = False
@@ -1293,7 +1293,7 @@ class Flight:
 
         if gliding_now:
             glide = Glide(first_glide_fix, last_glide_fix, 
-                          flight_fixes[first_glide_fix.index:last_glide_fix.index],
+                          self.fixes[first_glide_fix.index:last_glide_fix.index+1],
                           distance)
             self.glides.append(glide)
 

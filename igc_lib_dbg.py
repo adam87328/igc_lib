@@ -19,7 +19,12 @@ def main():
         print(flight.notes)
         sys.exit(1)
 
-    print(json.dumps(json.loads(flight.flight_summary()), indent=2) )
-        
+    print(indent(flight.flight_summary()))
+    print(indent(flight.thermals_to_gdf()))
+    print(indent(flight.glides_to_gdf()))
+
+def indent(jsonstr):
+    return json.dumps(json.loads(jsonstr), indent=2)
+
 if __name__ == "__main__":
     main()
