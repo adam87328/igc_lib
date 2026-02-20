@@ -1396,9 +1396,9 @@ class Flight:
                 "hardware_v": self.fr_hardware_version
             }
         }
-        return json.dumps(info)
+        return info
     
-    def timeseries(self):
+    def track_points(self):
         """Enhanced timeseries format with track points from thermals and glides.
         
         Returns a dictionary with track_points array containing chronologically
@@ -1443,9 +1443,7 @@ class Flight:
             tp["timestamp"] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
             # del tp["rawtime"]  # Remove the temporary sorting key
         
-        return {
-            "track_points": track_points
-        }
+        return track_points
 
     def thermals_to_gdf(self):
         """Thermals to GeoJSON"""
@@ -1456,29 +1454,17 @@ class Flight:
         # Build GeoJSON FeatureCollection
         features = []
         for i, thermal in enumerate(self.thermals):
-            # Convert fixes to LineString coordinates
-            coordinates = [[fix.lon, fix.lat] for fix in thermal.fixes]
-            
             feature = {
                 "id": str(i),
-                "type": "Feature",
-                "properties": {
-                    "duration": thermal.time_change(),
-                    "alt_change": thermal.alt_change(),
-                    "vertical_velocity": thermal.vertical_velocity(),
-                    "direction": thermal.direction
-                },
-                "geometry": {
-                    "type": "LineString",
-                    "coordinates": coordinates
-                }
+                "duration": thermal.time_change(),
+                "alt_change": thermal.alt_change(),
+                "vertical_velocity": thermal.vertical_velocity(),
+                "direction": thermal.direction,
+                "time_per_circle": thermal.time_per_circle
             }
             features.append(feature)
         
-        return json.dumps({
-            "type": "FeatureCollection",
-            "features": features
-        })
+        return features
 
     def glides_to_gdf(self):
         """Glides to GeoJSON"""
@@ -1489,25 +1475,13 @@ class Flight:
         # Build GeoJSON FeatureCollection
         features = []
         for i, glide in enumerate(self.glides):
-            # Convert fixes to LineString coordinates
-            coordinates = [[fix.lon, fix.lat] for fix in glide.fixes]
             
             feature = {
                 "id": str(i),
-                "type": "Feature",
-                "properties": {
-                    "duration": glide.time_change(),
-                    "alt_change": glide.alt_change(),
-                    "glide_ratio": glide.glide_ratio()
-                },
-                "geometry": {
-                    "type": "LineString",
-                    "coordinates": coordinates
-                }
+                "duration": glide.time_change(),
+                "alt_change": glide.alt_change(),
+                "glide_ratio": glide.glide_ratio()
             }
             features.append(feature)
         
-        return json.dumps({
-            "type": "FeatureCollection",
-            "features": features
-        })
+        return features

@@ -19,12 +19,15 @@ def main():
         print(flight.notes)
         sys.exit(1)
 
-    print(indent(flight.flight_summary()))
-    print(indent(flight.thermals_to_gdf()))
-    print(indent(flight.glides_to_gdf()))
+    print(indent({
+        "info"        : flight.flight_summary(),
+        "glides"      : flight.glides_to_gdf(),
+        "thermals"    : flight.thermals_to_gdf(),
+        "track_points": flight.track_points()
+         }))
 
 def indent(jsonstr):
-    return json.dumps(json.loads(jsonstr), indent=2)
+    return json.dumps(jsonstr, indent=2)
 
 if __name__ == "__main__":
     main()

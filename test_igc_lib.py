@@ -310,3 +310,18 @@ class TestWhichFlightToPick(unittest.TestCase):
         self.assertLess(
             flight_first.landing_fix.timestamp,
             flight_concat.landing_fix.timestamp)
+
+class TestOutputGeneration(unittest.TestCase):
+    
+    def setUp(self):
+        test_file = 'testfiles/new_zealand.igc'
+        self.flight = igc_lib.Flight.create_from_file(test_file)
+        
+    def testGlidesOutput(self):
+        self.flight.glides_to_gdf()
+        
+    def testThermalsOutput(self):
+        self.flight.thermals_to_gdf()
+        
+    def testFlightSummary(self):
+        self.flight.flight_summary()
