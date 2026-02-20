@@ -1445,11 +1445,34 @@ class Flight:
         
         return track_points
 
+    def track_points_all(self):
+        """For invalid flights
+        
+        Returns a dictionary with track_points array containing chronologically
+        ordered GPS fixes
+        """
+        track_points = []
+        for fix in self.fixes:
+            if fix.validity:
+                track_points.append({
+                    "rawtime": fix.rawtime,  # Keep for sorting
+                    "lat": fix.lat,
+                    "lon": fix.lon,
+                    "gps_alt": int(fix.gnss_alt),
+                    "pressure_alt": int(fix.press_alt)
+                })
+        
+        # Sort chronologically by rawtime (numeric, more efficient)
+        track_points.sort(key=lambda x: x["rawtime"])
+        
+        return track_points
+                
+                    
     def thermals_to_gdf(self):
         """Thermals to GeoJSON"""
         
         if not self.thermals:
-            return json.dumps({"type": "FeatureCollection", "features": []})
+            return json.dumps({})
         
         # Build GeoJSON FeatureCollection
         features = []
@@ -1470,7 +1493,7 @@ class Flight:
         """Glides to GeoJSON"""
 
         if not self.glides:
-            return json.dumps({"type": "FeatureCollection", "features": []})
+            return json.dumps({})
         
         # Build GeoJSON FeatureCollection
         features = []

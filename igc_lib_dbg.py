@@ -16,8 +16,11 @@ def main():
     flight = igc_lib.Flight.create_from_file(input_file)
     if not flight.valid:
         print("Provided flight is invalid:")
-        print(flight.notes)
-        sys.exit(1)
+        print(indent({
+            "invalid"     : flight.notes,
+            "track_points": flight.track_points_all()
+            }))
+        return
 
     print(indent({
         "info"        : flight.flight_summary(),

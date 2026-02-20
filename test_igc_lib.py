@@ -325,3 +325,9 @@ class TestOutputGeneration(unittest.TestCase):
         
     def testFlightSummary(self):
         self.flight.flight_summary()
+
+    def testTrackPoints(self):
+        self.flight.track_points()
+        
+    def testTrackPointsAll(self):
+        self.flight.track_points_all()
